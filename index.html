@@ -1,0 +1,291 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <title>Simulador Monty Hall</title>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+  <style>
+    body {
+      font-family: Arial;
+      text-align: center;
+      background: #fce4ec;
+    }
+
+    h1 {
+      color: #6a1b9a;
+    }
+
+    .doors {
+      display: flex;
+      justify-content: center;
+      margin: 20px;
+    }
+
+    .door {
+      width: 100px;
+      height: 150px;
+      background: #8e24aa;
+      margin: 10px;
+      color: white;
+      font-size: 24px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      border-radius: 10px;
+    }
+
+    .opened {
+      background: #ccc;
+      color: black;
+    }
+
+    button {
+      padding: 10px 20px;
+      margin: 10px;
+      border: none;
+      border-radius: 5px;
+      background: #ab47bc;
+      color: white;
+      cursor: pointer;
+    }
+
+    #result {
+      font-size: 20px;
+      margin-top: 10px;
+    }
+
+    .stats {
+      margin-top: 20px;
+      font-size: 18px;
+    }
+
+    canvas {
+      max-width: 400px;
+      margin: 20px auto;
+    }
+  </style>
+</head>
+<body>
+
+<h1>Simulador Monty Hall</h1>
+
+<div class="doors">
+  <div class="door" onclick="chooseDoor(0)">1</div>
+  <div class="door" onclick="chooseDoor(1)">2</div>
+  <div class="door" onclick="chooseDoor(2)">3</div>
+</div>
+
+<div id="controls" style="display:none;">
+  <p>Trocar de porta?</p>
+  <button onclick="finalChoice(true)">Trocar</button>
+  <button onclick="finalChoice(false)">Ficar</button>
+</div>
+
+<div>
+  <button onclick="simulate(1000)">Simular 1000 jogos</button>
+  <button onclick="resetStats()">Resetar</button>
+</div>
+
+<div id="result"></div>
+
+<div class="stats">
+  <p>Total de jogos: <span id="games">0</span></p>
+  <p>Vitórias trocando: <span id="winSwitch">0</span></p>
+  <p>Vitórias ficando: <span id="winStay">0</span></p>
+</div>
+
+<canvas id="chart"></canvas>
+
+<script>
+
+// =======================
+// VARIÁVEIS GLOBAIS
+// =======================
+
+// prize → posição do prêmio
+// playerChoice → escolha inicial do jogador
+// openedDoor → porta aberta pelo apresentador
+
+let prize, playerChoice, openedDoor;
+
+// Contadores (frequência experimental)
+let games = 0;
+let winSwitch = 0;
+let winStay = 0;
+
+// =======================
+// GRÁFICO
+// =======================
+
+const ctx = document.getElementById('chart').getContext('2d');
+const chart = new Chart(ctx, {
+  type: 'bar',
+  data: {
+    labels: ['Trocar', 'Ficar'],
+    datasets: [{
+      label: 'Vitórias',
+      data: [0, 0]
+    }]
+  }
+});
+
+// Atualiza gráfico (frequência observada)
+function updateChart() {
+  chart.data.datasets[0].data = [winSwitch, winStay];
+  chart.update();
+}
+
+// =======================
+// INÍCIO DO JOGO
+// =======================
+
+function startGame() {
+
+  // Sorteio uniforme do prêmio
+  // Cada porta tem probabilidade 1/3
+  prize = Math.floor(Math.random() * 3);
+
+  playerChoice = null;
+  openedDoor = null;
+
+  document.getElementById("result").innerHTML = "";
+  document.getElementById("controls").style.display = "none";
+
+  document.querySelectorAll(".door").forEach(d => {
+    d.classList.remove("opened");
+    d.innerHTML = "?";
+  });
+}
+
+// =======================
+// ESCOLHA DO JOGADOR
+// =======================
+
+function chooseDoor(index) {
+  if (playerChoice !== null) return;
+
+  // Jogador escolhe uma porta (também uniforme)
+  playerChoice = index;
+
+  // Monty abre uma porta com cabra
+  // Remove:
+  // - a escolhida
+  // - a que tem o prêmio
+  let options = [0,1,2].filter(i => i !== playerChoice && i !== prize);
+
+  // Escolha do apresentador:
+  // - se houver 2 opções → 1/2 cada
+  // - se houver 1 → probabilidade 1
+  openedDoor = options[Math.floor(Math.random() * options.length)];
+
+  let doors = document.querySelectorAll(".door");
+  doors[openedDoor].classList.add("opened");
+  doors[openedDoor].innerHTML = "🐐";
+
+  document.getElementById("controls").style.display = "block";
+}
+
+// =======================
+// DECISÃO FINAL
+// =======================
+
+function finalChoice(switchDoor) {
+
+  let finalChoice = playerChoice;
+
+  // Se trocar:
+  // escolhe a única porta restante
+  if (switchDoor) {
+    finalChoice = [0,1,2].find(i => i !== playerChoice && i !== openedDoor);
+  }
+
+  let doors = document.querySelectorAll(".door");
+
+  // Revela resultado
+  doors.forEach((door, i) => {
+    if (i === prize) {
+      door.innerHTML = "🚗";
+    } else if (i !== openedDoor) {
+      door.innerHTML = "🐐";
+    }
+  });
+
+  games++;
+
+  // Matemática do paradoxo:
+  // - Trocar ganha quando o jogador errou (2/3)
+  // - Ficar ganha quando acertou (1/3)
+
+  if (finalChoice === prize) {
+    document.getElementById("result").innerHTML = "🎉 Ganhou!";
+    if (switchDoor) winSwitch++;
+    else winStay++;
+  } else {
+    document.getElementById("result").innerHTML = "😢 Perdeu!";
+  }
+
+  updateStats();
+
+  setTimeout(startGame, 2000);
+}
+
+// =======================
+// SIMULAÇÃO AUTOMÁTICA
+// =======================
+
+function simulate(n) {
+
+  // Lei dos Grandes Números:
+  // quanto mais repetições, mais próximo da probabilidade real
+
+  for (let i = 0; i < n; i++) {
+
+    let prize = Math.floor(Math.random() * 3);
+    let choice = Math.floor(Math.random() * 3);
+
+    let options = [0,1,2].filter(d => d !== choice && d !== prize);
+    let opened = options[Math.floor(Math.random() * options.length)];
+
+    let switchChoice = [0,1,2].find(d => d !== choice && d !== opened);
+
+    // Frequência experimental
+    if (switchChoice === prize) winSwitch++;
+    if (choice === prize) winStay++;
+
+    games++;
+  }
+
+  updateStats();
+}
+
+// =======================
+// ATUALIZAÇÃO
+// =======================
+
+function updateStats() {
+  document.getElementById("games").innerText = games;
+  document.getElementById("winSwitch").innerText = winSwitch;
+  document.getElementById("winStay").innerText = winStay;
+  updateChart();
+}
+
+// =======================
+// RESET
+// =======================
+
+function resetStats() {
+  games = 0;
+  winSwitch = 0;
+  winStay = 0;
+  updateStats();
+}
+
+// Inicia jogo
+startGame();
+
+</script>
+
+</body>
+</html>
